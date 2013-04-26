@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Text;
-
+using System.Text.RegularExpressions;
 using QuickFix.Fields;
 
 namespace QuickFix
@@ -16,12 +18,36 @@ namespace QuickFix
 
         public DefaultMessageFactory()
         {
-            _factories[FixValues.BeginString.FIX40] = new QuickFix.FIX40.MessageFactory();
-            _factories[FixValues.BeginString.FIX41] = new QuickFix.FIX41.MessageFactory();
-            _factories[FixValues.BeginString.FIX42] = new QuickFix.FIX42.MessageFactory();
-            _factories[FixValues.BeginString.FIX43] = new QuickFix.FIX43.MessageFactory();
-            _factories[FixValues.BeginString.FIX44] = new QuickFix.FIX44.MessageFactory();
-            _factories[FixValues.BeginString.FIX50] = new QuickFix.FIX50.MessageFactory();
+			  var factoryInterface = typeof(IMessageFactory);
+			  Regex namingConvention = new Regex("QuickFix.(?<version>[^\\.]+).MessageFactory");
+			  // Get all concrete types implementing the IMessageFactory interface
+			  //  which are defined in a quickfix assembly
+			  //  and which have a public default constructor
+			  //  and which are named like QuickFix.FIXVERSION.MessageFactory
+			  var messageFactories = from assembly in AppDomain.CurrentDomain.GetAssemblies()
+											 where assembly.FullName.StartsWith("QuickFix", StringComparison.InvariantCultureIgnoreCase)
+											 from type in assembly.GetExportedTypes() // get public classes
+											 where factoryInterface.IsAssignableFrom(type)
+												 && type.IsClass
+												 && !type.IsAbstract
+											 let defaultConstructor = type.GetConstructor(Type.EmptyTypes)
+											 let match = namingConvention.Match(type.FullName)
+											 where defaultConstructor != null
+												 && defaultConstructor.IsPublic
+												 && match.Success																						
+											 select new {FactoryType = type, FixVersion = match.Groups["version"].Value};
+
+			  foreach(var factory in messageFactories)
+			  {
+				  var beginStringField = typeof(FixValues.BeginString).GetField(factory.FixVersion, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static);
+
+				  Debug.Assert(beginStringField != null, "Found messagefactory for fix version that is missing begin string");
+				  if(beginStringField != null)
+				  {
+					  var beginString = beginStringField.GetValue(null).ToString();
+					  _factories[beginString] = (IMessageFactory)Activator.CreateInstance( factory.FactoryType);				  
+				  }
+			  }
         }
 
         #region IMessageFactory Members
