@@ -90,6 +90,11 @@ namespace QuickFix
             }
 
             this.Log("shutdown");
+				{
+					var log = log_;
+					log_ = null;
+					log.Dispose();
+				}
         }
 
         /// FIXME do real logging
@@ -104,7 +109,7 @@ namespace QuickFix
         /// <returns></returns>
         internal ILog GetLog()
         {
-            return log_;
+			  return log_ ?? (ILog)new NullLog();
         }
 
         #region Responder Members

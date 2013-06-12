@@ -107,8 +107,17 @@ namespace QuickFix
 
         public void Dispose()
         {
-            messageLog_.Close();
-            eventLog_.Close();
+			  if (messageLog_ != null)
+			  {
+				  messageLog_.Close();
+				  messageLog_ = null;			  
+			  }
+
+			  if (eventLog_ != null)
+			  {
+				  eventLog_.Close();
+				  eventLog_ = null;
+			  }
         }
 
         #endregion
